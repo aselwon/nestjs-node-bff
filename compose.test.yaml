@@ -1,0 +1,34 @@
+name: shopbff-test
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: shopbff
+      POSTGRES_PASSWORD: shopbff
+      POSTGRES_DB: shopbff_test
+    tmpfs: ["/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shopbff -d shopbff_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  tests:
+    build:
+      context: .
+      target: tests
+    command: ["sh", "-c", "npm run db:migrate && npm run typecheck && npm test && npm run test:integration"]
+    environment:
+      DATABASE_URL: postgresql://shopbff:shopbff@postgres:5432/shopbff_test?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: integration-only-secret-at-least-32-characters
+      SHOPBFF_INTEGRATION: "1"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }

@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum CartStatus {
+  OPEN
+  CHECKED_OUT
+}
+
+model User {
+  id           String @id @default(uuid()) @db.Uuid
+  email        String @unique
+  passwordHash String
+  role         Role @default(USER)
+  orders       Order[]
+}
+
+model Product {
+  id          String @id @default(uuid()) @db.Uuid
+  name        String
+  description String
+  priceCents  Int
+  active      Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  inventory   Inventory?
+  cartItems   CartItem[]
+}
+
+model Inventory {
+  productId String @id @db.Uuid
+  stock     Int
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Cart {
+  id          String @id @default(uuid()) @db.Uuid
+  sessionHash String @unique
+  status      CartStatus @default(OPEN)
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  items       CartItem[]
+  order       Order?
+}
+
+model CartItem {
+  cartId    String @db.Uuid
+  productId String @db.Uuid
+  quantity  Int
+  cart      Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
+  @@id([cartId, productId])
+}
+
+model Order {
+  id                 String @id @default(uuid()) @db.Uuid
+  cartId             String @unique @db.Uuid
+  userId             String @db.Uuid
+  totalCents         Int
+  currency           String @default("USD")
+  createdAt          DateTime @default(now())
+  confirmationSentAt DateTime?
+  cart               Cart @relation(fields: [cartId], references: [id])
+  user               User @relation(fields: [userId], references: [id])
+  items              OrderItem[]
+  confirmation       ConfirmationOutbox?
+  @@index([userId])
+}
+
+model OrderItem {
+  id             String @id @default(uuid()) @db.Uuid
+  orderId        String @db.Uuid
+  productId      String @db.Uuid
+  name           String
+  unitPriceCents Int
+  quantity       Int
+  order          Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model ConfirmationOutbox {
+  orderId   String @id @db.Uuid
+  queuedAt  DateTime?
+  createdAt DateTime @default(now())
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  @@index([queuedAt, createdAt])
+}

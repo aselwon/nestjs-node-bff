@@ -1,0 +1,63 @@
+name: shopbff
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: shopbff
+      POSTGRES_PASSWORD: shopbff
+      POSTGRES_DB: shopbff
+    ports: ["127.0.0.1:${POSTGRES_PORT:-15432}:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shopbff -d shopbff"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    ports: ["127.0.0.1:${REDIS_PORT:-16379}:6379"]
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    build:
+      context: .
+      target: build
+    entrypoint: ["node", "node_modules/prisma/build/index.js"]
+    command: ["migrate", "deploy"]
+    environment:
+      DATABASE_URL: postgresql://shopbff:shopbff@postgres:5432/shopbff?schema=public
+    depends_on:
+      postgres: { condition: service_healthy }
+  seed:
+    build: .
+    command: ["node", "dist/prisma/seed.js"]
+    environment:
+      DATABASE_URL: postgresql://shopbff:shopbff@postgres:5432/shopbff?schema=public
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+  api:
+    build: .
+    ports: ["127.0.0.1:${PORT:-3000}:3000"]
+    environment:
+      DATABASE_URL: postgresql://shopbff:shopbff@postgres:5432/shopbff?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET:-local-demo-only-change-this-secret-32-chars}
+      NODE_ENV: production
+      PORT: 3000
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      seed: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  postgres-data:
+  redis-data:
