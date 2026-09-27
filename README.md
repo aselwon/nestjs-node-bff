@@ -11,6 +11,11 @@ ShopBFF is a NestJS API/BFF for a fictional store. It provides a catalog with in
 
 There is no real payment provider, frontend, email provider, or external upstream integration. Confirmation delivery is a stub: the worker records confirmationSentAt in the database.
 
+## Public demo
+
+No public demo is currently available. This repository is API-only; run it locally and use the Swagger UI at `/docs`.
+
+
 ## Quick start with Docker Compose
 
 Docker with Compose v2 is required.
